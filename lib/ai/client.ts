@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { clearApiKey, getApiKey, MissingApiKeyError, requestApiKey } from "../apiKey";
 
-/** Research and article writing. */
+/** Article writing. */
 export const LARGE_MODEL = "claude-haiku-5-5";
 /** Titles, title fact checks, summaries and profile updates. */
 export const SMALL_MODEL = "claude-haiku-5-5";

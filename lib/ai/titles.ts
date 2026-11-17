@@ -1,8 +1,10 @@
-import type Anthropic from "@anthropic-ai/sdk";
+import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { IdeasSchema, type Idea, type TitlesRequest, type TitlesResponse } from "../schemas";
-import { assertNotRefused, finalText, SMALL_MODEL, withClaude } from "./client";
-import { factCheckPrompt, replacementTitlePrompt, titlesPrompt } from "./prompts";
+import type { FactCheck } from "../types";
+import { assertNotRefused, SMALL_MODEL, withClaude } from "./client";
+import { factCheck } from "./factCheck";
+import { replacementTitlePrompt, titlesPrompt } from "./prompts";
 
 async function generateIdeas(
   client: Anthropic,
@@ -31,33 +33,21 @@ function distinctTypes(ideas: Idea[]): number {
   return new Set(ideas.flatMap((i) => i.types)).size;
 }
 
-/** One web search with the small model. Only a clear "unconfirmed" counts against a title. */
-async function isConfirmed(client: Anthropic, idea: Idea, signal: AbortSignal): Promise<boolean> {
+/**
+ * Fact check with one web search. A failed check (network, rate limit) keeps the
+ * title unchecked rather than losing the set: it is checked again when opened.
+ */
+async function check(
+  client: Anthropic,
+  idea: Idea,
+  signal: AbortSignal,
+): Promise<FactCheck | null | "failed"> {
   try {
-    const messages: Anthropic.MessageParam[] = [{ role: "user", content: factCheckPrompt(idea) }];
-    let response: Anthropic.Message;
-    let continuations = 0;
-    while (true) {
-      response = await client.messages.create(
-        {
-          model: SMALL_MODEL,
-          max_tokens: 4000,
-          tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 1 }],
-          messages,
-        },
-        { signal },
-      );
-      if (response.stop_reason !== "pause_turn" || continuations++ >= 2) break;
-      messages.push({ role: "assistant", content: response.content });
-    }
-    if (response.stop_reason === "refusal") return false;
-    const verdict = /VERDICT:\s*(CONFIRMED|UNCONFIRMED)/i.exec(finalText(response));
-    return verdict?.[1].toUpperCase() === "CONFIRMED";
+    return await factCheck(client, idea, signal);
   } catch (err) {
-    if (signal.aborted) throw err;
-    // The check itself failed (network, rate limit): keep the title rather than lose the set.
+    if (signal.aborted || err instanceof Anthropic.AuthenticationError) throw err;
     console.error("Title fact check failed:", err);
-    return true;
+    return "failed";
   }
 }
 
@@ -81,10 +71,13 @@ export function generateTitles(
     }
 
     // Quick fact check, 1 search per title; an unconfirmed title is regenerated once.
+    // A confirmed check keeps its claim and sources: the article is written from them.
     const firstDraft = ideas;
     const checked = await Promise.all(
-      firstDraft.map(async (idea, i) => {
-        if (await isConfirmed(client, idea, signal)) return idea;
+      firstDraft.map(async (idea, i): Promise<Idea & { fact_check: FactCheck | null }> => {
+        const result = await check(client, idea, signal);
+        if (result === "failed") return { ...idea, fact_check: null };
+        if (result) return { ...idea, fact_check: result };
         try {
           const [replacement] = await generateIdeas(
             client,
@@ -98,11 +91,12 @@ export function generateTitles(
             1,
             signal,
           );
-          return replacement;
+          // The replacement isn't checked now; it is checked when opened.
+          return { ...replacement, fact_check: null };
         } catch (err) {
           if (signal.aborted) throw err;
           console.error("Title regeneration failed:", err);
-          return idea;
+          return { ...idea, fact_check: null };
         }
       }),
     );

@@ -5,8 +5,8 @@ import type {
   Idea,
   ProfileRequest,
   ProfileSchema,
-  Research,
 } from "../schemas";
+import type { FactCheck } from "../types";
 
 type Profile = z.infer<typeof ProfileSchema>;
 type DrawnTopic = z.infer<typeof DrawnTopicSchema>;
@@ -76,38 +76,28 @@ Today's date: ${date}
 Return JSON: {"ideas": [{"title", "topic", "types", "teaser" (max 20 words), "angle"}]} with exactly one idea.`;
 }
 
+export type FactCheckInput = Pick<Idea, "title" | "teaser" | "angle">;
+
 /** Quick fact check of one title (small model, one web search). */
-export function factCheckPrompt(idea: Idea): string {
+export function factCheckPrompt(idea: FactCheckInput): string {
   return `Fact-check the core claim behind this article idea with one web search.
 
 Title: "${idea.title}"
 Teaser: ${idea.teaser}
 Angle: ${idea.angle}
 
-Then answer in one short sentence, followed by a final line that is exactly "VERDICT: CONFIRMED" if reliable search results support the core claim, or "VERDICT: UNCONFIRMED" if they contradict it or you could not confirm it.`;
+Then reply in exactly this format:
+- One or two sentences stating what the search results confirm about the core claim (or why they don't).
+- A line "SOURCE: <url>" with the URL of the reliable search result that confirms the core claim. Leave this line out if no result confirms it.
+- A final line that is exactly "VERDICT: CONFIRMED" if a reliable search result supports the core claim, or "VERDICT: UNCONFIRMED" if the results contradict it or you could not confirm it.`;
 }
 
-/** Prompt 2, step A — research (web search enabled). */
-export function researchPrompt(req: ArticleRequest): string {
-  return `Research the article "${req.title}" (${req.teaser}). Angle: ${req.angle}. Article type(s): ${req.types.join(", ")}.
-
-Use web search to find 3–6 reliable sources (encyclopedias, universities, museums, reputable news outlets, original papers; avoid content farms).
-
-Return JSON: {"verdict": "ok" | "premise_false" | "not_enough_sources", "facts": [{"claim", "source_ids", "confidence": "high" | "disputed"}], "sources": [{"id", "title", "url"}], "corrected_angle" (only if the title's premise needs adjusting)}. Only include claims that a source supports.
-
-Reply with the JSON object only.`;
-}
-
-/** Prompt 2, step B — write (no tools; streams to the screen). */
+/** Prompt 2 — write from the title's fact check (no tools; streams to the screen). */
 export function writePrompt(
   req: ArticleRequest,
-  research: Research,
+  factCheck: FactCheck,
   previousWordCount?: number,
 ): string {
-  const notes = JSON.stringify({
-    facts: research.facts,
-    ...(research.corrected_angle ? { corrected_angle: research.corrected_angle } : {}),
-  });
   const excerpts = req.excerpts.length
     ? req.excerpts.map((e, i) => `Example ${i + 1}:\n${e}`).join("\n\n")
     : "(none yet)";
@@ -115,10 +105,12 @@ export function writePrompt(
     ? `\n\nYour previous draft was ${previousWordCount} words. This one must be 900–1,150 words.`
     : "";
 
-  return `Write a 900–1,150 word article in English titled "${req.title}", using only the facts in these research notes:
-${notes}
+  return `Write a 900–1,150 word article in English titled "${req.title}". Angle: ${req.angle}
 
-Do not add names, dates or numbers that are not in the notes; if a fact is marked disputed, say so in the text.
+Its core claim was checked with a web search, which confirmed:
+${factCheck.claim}
+
+Build the article around this confirmed claim. Stick to well-established facts: leave out any name, date or number you are not sure of rather than guessing, and if a point is disputed, say so in the text.
 
 Article type(s): ${req.types.join(", ")}. For random_facts, pack in surprising facts. For should_know, make clear why it matters in the reader's own life. For understand_world, connect it to the bigger picture. For how_it_works, explain the mechanism step by step with a simple analogy.
 

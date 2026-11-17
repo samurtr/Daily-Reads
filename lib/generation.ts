@@ -11,11 +11,9 @@ import type { Source, TitleIdea } from "./types";
  * navigating back to Today and is never started twice for the same title.
  */
 export interface Generation {
-  stage: "researching" | "writing" | "done" | "unverified" | "error";
-  startedAt: number;
-  /** Pages found so far during research. */
-  found: Source[];
-  /** The final sources list, once research has finished. */
+  /** "checking" only for a title whose claim wasn't confirmed when the titles were made. */
+  stage: "checking" | "writing" | "done" | "unverified" | "error";
+  /** The search results the claim was confirmed from, once known. */
   sources: Source[] | null;
   /** The Markdown body streamed so far. */
   body: string;
@@ -66,6 +64,7 @@ async function buildRequest(idea: TitleIdea): Promise<ArticleRequest> {
     types: idea.types,
     style: profile.style,
     excerpts: await likedExcerpts(),
+    fact_check: idea.fact_check ?? null,
   };
 }
 
@@ -82,7 +81,7 @@ async function saveArticle(idea: TitleIdea, event: Extract<ArticleResult, { type
         word_count: event.word_count,
         summary: event.summary,
         style_note: event.style_note,
-        research_json: event.research,
+        research_json: event.fact_check,
         sources: event.sources,
         feedback: null,
         saved_at: null,
@@ -99,9 +98,6 @@ async function run(idea: TitleIdea, signal: AbortSignal) {
     switch (progress.type) {
       case "status":
         update(idea.id, { stage: progress.stage });
-        break;
-      case "found":
-        update(idea.id, { found: progress.pages });
         break;
       case "sources":
         update(idea.id, { sources: progress.sources });
@@ -126,16 +122,14 @@ async function run(idea: TitleIdea, signal: AbortSignal) {
   update(idea.id, { stage: "done", body: result.body_markdown, sources: result.sources });
 }
 
-/** Starts researching and writing the article for a title, unless that is already running. */
+/** Starts writing the article for a title, unless that is already running. */
 export function startGeneration(idea: TitleIdea) {
   if (controllers.has(idea.id)) return;
   const controller = new AbortController();
   controllers.set(idea.id, controller);
   generations.set(idea.id, {
-    stage: "researching",
-    startedAt: Date.now(),
-    found: [],
-    sources: null,
+    stage: idea.fact_check ? "writing" : "checking",
+    sources: idea.fact_check?.sources ?? null,
     body: "",
   });
   notify();

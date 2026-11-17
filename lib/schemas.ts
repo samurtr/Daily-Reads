@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ARTICLE_TYPES } from "./types";
+import { ARTICLE_TYPES, type ArticleType, type FactCheck, type TasteProfile } from "./types";
 
 export const ArticleTypeSchema = z.enum(ARTICLE_TYPES);
 
@@ -41,37 +41,20 @@ export const TitlesRequestSchema = z.object({
 export type TitlesRequest = z.infer<typeof TitlesRequestSchema>;
 
 export interface TitlesResponse {
-  ideas: (Idea & { is_exploration: boolean })[];
+  ideas: (Idea & { is_exploration: boolean; fact_check: FactCheck | null })[];
 }
 
-export const ArticleRequestSchema = z.object({
-  title: z.string().min(1),
-  teaser: z.string(),
-  angle: z.string(),
-  types: z.array(ArticleTypeSchema).min(1),
-  style: ProfileSchema.shape.style,
-  excerpts: z.array(z.string()).max(2),
-});
-export type ArticleRequest = z.infer<typeof ArticleRequestSchema>;
-
-/** Step A output: the research notes the article is written from. */
-export const ResearchSchema = z.object({
-  verdict: z.enum(["ok", "premise_false", "not_enough_sources"]),
-  facts: z
-    .array(
-      z.object({
-        claim: z.string(),
-        source_ids: z.array(z.coerce.string()),
-        confidence: z.enum(["high", "disputed"]),
-      }),
-    )
-    .default([]),
-  sources: z
-    .array(z.object({ id: z.coerce.string(), title: z.string(), url: z.string() }))
-    .default([]),
-  corrected_angle: z.string().nullish(),
-});
-export type Research = z.infer<typeof ResearchSchema>;
+export interface ArticleRequest {
+  title: string;
+  teaser: string;
+  angle: string;
+  types: ArticleType[];
+  style: TasteProfile["style"];
+  /** 1–2 excerpts of liked articles, as style examples. */
+  excerpts: string[];
+  /** The title's confirmed fact check, or null when it still has to be checked. */
+  fact_check: FactCheck | null;
+}
 
 /** Stored with each article for later profile updates. */
 export const ArticleNotesSchema = z.object({

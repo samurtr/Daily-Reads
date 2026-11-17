@@ -41,12 +41,24 @@ export interface TitleIdea {
   teaser: string;
   angle: string;
   status: TitleStatus;
+  /**
+   * The confirmed fact check of the title's core claim, or null (or missing, on
+   * titles saved before fact checks were stored) when it hasn't been confirmed:
+   * the title is then checked when it is opened.
+   */
+  fact_check?: FactCheck | null;
   created_at: number;
 }
 
 export interface Source {
   title: string;
   url: string;
+}
+
+/** A confirmed fact check: what the web search confirmed, and the results it confirmed it from. */
+export interface FactCheck {
+  claim: string;
+  sources: Source[];
 }
 
 export type Feedback = "up" | "down" | null;

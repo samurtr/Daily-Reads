@@ -20,15 +20,16 @@ function Step({ state, children }: { state: StepState; children: React.ReactNode
   );
 }
 
-/** Researching… → N sources found… → Writing… */
+/** Checking the facts… (only if not confirmed yet) → Confirmed by N sources → Writing… */
 export default function StepIndicator({ generation }: { generation: Generation }) {
-  const researching = generation.stage === "researching";
-  const count = generation.sources?.length ?? null;
+  const checking = generation.stage === "checking";
+  const count = generation.sources?.length ?? 0;
   return (
     <ol className="space-y-2" aria-live="polite">
-      <Step state={researching && count === null ? "active" : "done"}>Researching…</Step>
-      <Step state={count === null ? "pending" : "done"}>
-        {count === null ? "Sources" : `${count} ${count === 1 ? "source" : "sources"} found…`}
+      <Step state={checking ? "active" : "done"}>
+        {checking
+          ? "Checking the facts…"
+          : `Confirmed by ${count} ${count === 1 ? "source" : "sources"}`}
       </Step>
       <Step state={generation.stage === "writing" ? "active" : "pending"}>Writing…</Step>
     </ol>

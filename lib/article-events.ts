@@ -1,12 +1,10 @@
-import type { Research } from "./schemas";
-import type { Source } from "./types";
+import type { FactCheck, Source } from "./types";
 
-/** Progress reported while an article is researched and written. */
+/** Progress reported while an article is written. */
 export type ArticleProgress =
-  | { type: "status"; stage: "researching" | "writing" }
-  /** Pages the research has turned up so far. */
-  | { type: "found"; pages: Source[] }
-  /** The final, numbered sources list from the research JSON. */
+  /** "checking" only when the title's claim wasn't confirmed yet. */
+  | { type: "status"; stage: "checking" | "writing" }
+  /** The numbered sources list: the search results the fact check confirmed the claim from. */
   | { type: "sources"; sources: Source[] }
   /** A piece of the Markdown body. */
   | { type: "delta"; text: string }
@@ -22,7 +20,7 @@ export type ArticleResult =
       summary: string;
       style_note: string;
       sources: Source[];
-      research: Research;
+      fact_check: FactCheck;
     }
-  /** Research says the premise is false or found too few sources: nothing was written. */
-  | { type: "unverified"; verdict: Research["verdict"] };
+  /** The fact check couldn't confirm the title's claim from a real source: nothing was written. */
+  | { type: "unverified" };

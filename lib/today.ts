@@ -78,6 +78,7 @@ function addTitles(batchId: number, ideas: TitlesResponse["ideas"], now: number)
       types: idea.types,
       teaser: idea.teaser,
       angle: idea.angle,
+      fact_check: idea.fact_check,
       status: "shown" as const,
       created_at: now,
     })),

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Suspense, useEffect, useRef, useSyncExternalStore } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
 import Markdown from "react-markdown";
@@ -19,8 +19,6 @@ import {
 import { readMinutes, stripLeadingTitle } from "@/lib/text";
 import { TYPE_LABELS, type Source } from "@/lib/types";
 import { useOnline } from "@/lib/useOnline";
-
-const SLOW_RESEARCH_MS = 60_000;
 
 export default function ArticlePage() {
   return (
@@ -46,7 +44,7 @@ function ArticleView() {
   const leaving = useRef(false);
   const online = useOnline();
 
-  // Not cached yet: research and write it now (generation is disabled while offline).
+  // Not cached yet: write it now (generation is disabled while offline).
   useEffect(() => {
     if (idea && article === null && !generation && online && !leaving.current) {
       startGeneration(idea);
@@ -162,58 +160,6 @@ function GenerationStatus({
   return (
     <div className="mt-8">
       <StepIndicator generation={generation} />
-      {generation.stage === "researching" && (
-        <SlowResearch generation={generation} onPickAnother={onPickAnother} />
-      )}
-    </div>
-  );
-}
-
-/** Research is taking longer than 60 s: show what was found so far and let the reader decide. */
-function SlowResearch({
-  generation,
-  onPickAnother,
-}: {
-  generation: Generation;
-  onPickAnother: () => void;
-}) {
-  const [deadline, setDeadline] = useState(generation.startedAt + SLOW_RESEARCH_MS);
-  const [slow, setSlow] = useState(false);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setSlow(true), Math.max(0, deadline - Date.now()));
-    return () => clearTimeout(timer);
-  }, [deadline]);
-
-  if (!slow) return null;
-  return (
-    <div className="mt-6 rounded-2xl border border-border bg-card p-5">
-      <p className="font-medium">The research is taking longer than usual.</p>
-      {generation.found.length > 0 ? (
-        <>
-          <p className="mt-3 text-sm text-muted">Found so far:</p>
-          <ul className="mt-2 space-y-1.5 text-sm">
-            {generation.found.slice(0, 8).map((page) => (
-              <li key={page.url} className="truncate text-muted">
-                {page.title || page.url}
-              </li>
-            ))}
-          </ul>
-        </>
-      ) : (
-        <p className="mt-3 text-sm text-muted">Nothing found yet.</p>
-      )}
-      <div className="mt-5 flex flex-wrap gap-2">
-        <PrimaryButton
-          onClick={() => {
-            setSlow(false);
-            setDeadline(Date.now() + SLOW_RESEARCH_MS);
-          }}
-        >
-          Keep waiting
-        </PrimaryButton>
-        <SecondaryButton onClick={onPickAnother}>Pick another title</SecondaryButton>
-      </div>
     </div>
   );
 }
