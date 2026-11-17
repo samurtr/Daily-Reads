@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
+import { normalizePath } from "@/lib/basePath";
 import { getSetting } from "@/lib/db";
 
 /** Sends first-time users to onboarding, and onboarded users away from it. */
@@ -13,7 +14,7 @@ export default function AppGate({ children }: { children: React.ReactNode }) {
     async () => (await getSetting<boolean>("onboarding_done")) === true,
   );
 
-  const onWelcome = pathname === "/welcome";
+  const onWelcome = normalizePath(pathname) === "/welcome";
   const redirectTo =
     onboarded === undefined
       ? null

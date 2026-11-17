@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useLiveQuery } from "dexie-react-hooks";
 import TabBar from "@/components/TabBar";
 import TitleCard, { SkeletonCard } from "@/components/TitleCard";
-import { errorMessage } from "@/lib/api";
+import { errorMessage } from "@/lib/ai/client";
 import { formatLongDate, localDate } from "@/lib/date";
 import { db } from "@/lib/db";
 import { ensureTodayBatch, loadToday, MAX_REFRESHES, refreshTitles } from "@/lib/today";

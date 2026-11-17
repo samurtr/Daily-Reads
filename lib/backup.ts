@@ -1,7 +1,7 @@
 import { FONT_MIRROR_KEY, THEME_MIRROR_KEY } from "./appearance";
 import { localDate } from "./date";
 import { db } from "./db";
-import { clearPasscode } from "./passcode";
+import { clearApiKey } from "./apiKey";
 
 const TABLES = [
   "topics",
@@ -79,7 +79,7 @@ export async function clearAllData(): Promise<void> {
   await db.transaction("rw", db.tables, async () => {
     for (const name of TABLES) await db.table(name).clear();
   });
-  clearPasscode();
+  clearApiKey();
   try {
     localStorage.removeItem(THEME_MIRROR_KEY);
     localStorage.removeItem(FONT_MIRROR_KEY);

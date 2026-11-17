@@ -1,9 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { Newsreader } from "next/font/google";
-import { SerwistProvider } from "@serwist/turbopack/react";
+import ApiKeyPrompt from "@/components/ApiKeyPrompt";
 import AppearanceSync from "@/components/AppearanceSync";
 import AppGate from "@/components/AppGate";
-import PasscodePrompt from "@/components/PasscodePrompt";
+import ServiceWorker from "@/components/ServiceWorker";
 import { APPEARANCE_BOOT_SCRIPT } from "@/lib/appearance";
 import "./globals.css";
 
@@ -38,15 +38,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: APPEARANCE_BOOT_SCRIPT }} />
       </head>
       <body>
-        <SerwistProvider
-          swUrl="/serwist/sw.js"
-          disable={process.env.NODE_ENV === "development"}
-          reloadOnOnline={false}
-        >
-          <AppearanceSync />
-          <AppGate>{children}</AppGate>
-          <PasscodePrompt />
-        </SerwistProvider>
+        <ServiceWorker />
+        <AppearanceSync />
+        <AppGate>{children}</AppGate>
+        <ApiKeyPrompt />
       </body>
     </html>
   );

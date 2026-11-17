@@ -1,4 +1,4 @@
-import { postJSON } from "./api";
+import { generateTitles } from "./ai/titles";
 import { DAY_MS } from "./date";
 import { db } from "./db";
 import { drawDailyTopics } from "./draw";
@@ -28,7 +28,7 @@ export async function loadToday(
   return { batch, titles: await currentTitles(batch.id) };
 }
 
-/** Draws 5 topics in the browser, then asks the server for one fact-checked title per topic. */
+/** Draws 5 topics in the browser, then asks Claude for one fact-checked title per topic. */
 async function requestTitleSet(date: string): Promise<TitlesResponse["ideas"]> {
   const now = Date.now();
   const topics = (await db.topics.toArray()).filter((t) => t.is_active).map((t) => t.name);
@@ -46,25 +46,24 @@ async function requestTitleSet(date: string): Promise<TitlesResponse["ideas"]> {
     (await db.taste_profile.get(1))?.profile_json ?? defaultProfile(topics);
 
   const request = (avoid: string[]) =>
-    postJSON<TitlesResponse>(
-      "/api/titles",
+    generateTitles(
       {
         drawn_topics: drawn.map((d) => ({ topic: d.topic, is_exploration: d.isExploration })),
         profile,
         recent_titles: avoid,
         date,
       },
-      { timeoutMs: TITLES_TIMEOUT_MS },
+      TITLES_TIMEOUT_MS,
     );
 
-  let { ideas } = await request(recentTitles);
+  let ideas = await request(recentTitles);
 
   // Similarity check on the client: if a new title is too close to a recent one, ask once more.
   const tooSimilar = ideas.filter((idea) =>
     recentTitles.some((recent) => isTooSimilar(idea.title, recent)),
   );
   if (tooSimilar.length > 0) {
-    ({ ideas } = await request([...recentTitles, ...tooSimilar.map((i) => i.title)]));
+    ideas = await request([...recentTitles, ...tooSimilar.map((i) => i.title)]);
   }
   return ideas;
 }

@@ -99,7 +99,3 @@ export const ProfileRequestSchema = z.object({
   }),
 });
 export type ProfileRequest = z.infer<typeof ProfileRequestSchema>;
-
-export interface ProfileResponse {
-  profile: z.infer<typeof ProfileSchema>;
-}

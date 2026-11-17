@@ -1,7 +1,7 @@
-import { postJSON } from "./api";
+import { updateProfile } from "./ai/profile";
 import { DAY_MS } from "./date";
 import { db, getSetting, setSetting } from "./db";
-import type { FeedbackItem, ProfileRequest, ProfileResponse } from "./schemas";
+import type { FeedbackItem, ProfileRequest } from "./schemas";
 import { excerpt } from "./text";
 import type { Article, TasteProfile } from "./types";
 
@@ -88,7 +88,7 @@ async function rebuild(): Promise<void> {
       skipped_titles: skipped.map((t) => t.title),
     },
   };
-  const { profile } = await postJSON<ProfileResponse>("/api/profile", request);
+  const profile = await updateProfile(request);
 
   await db.taste_profile.put({
     id: 1,

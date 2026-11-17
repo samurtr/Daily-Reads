@@ -1,8 +1,8 @@
 import type { Research } from "./schemas";
 import type { Source } from "./types";
 
-/** Events streamed by POST /api/article, one JSON object per line. */
-export type ArticleEvent =
+/** Progress reported while an article is researched and written. */
+export type ArticleProgress =
   | { type: "status"; stage: "researching" | "writing" }
   /** Pages the research has turned up so far. */
   | { type: "found"; pages: Source[] }
@@ -11,7 +11,10 @@ export type ArticleEvent =
   /** A piece of the Markdown body. */
   | { type: "delta"; text: string }
   /** The draft was too short or too long and is being rewritten: discard the body so far. */
-  | { type: "reset" }
+  | { type: "reset" };
+
+/** How an article generation ended. */
+export type ArticleResult =
   | {
       type: "done";
       body_markdown: string;
@@ -22,5 +25,4 @@ export type ArticleEvent =
       research: Research;
     }
   /** Research says the premise is false or found too few sources: nothing was written. */
-  | { type: "unverified"; verdict: Research["verdict"] }
-  | { type: "error"; code: string };
+  | { type: "unverified"; verdict: Research["verdict"] };

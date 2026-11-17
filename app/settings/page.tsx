@@ -1,11 +1,19 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import TabBar from "@/components/TabBar";
 import TopicInput from "@/components/TopicInput";
+import {
+  clearApiKey,
+  getApiKey,
+  maskApiKey,
+  openApiKeyPrompt,
+  subscribeApiKey,
+} from "@/lib/apiKey";
 import { effectiveTheme, type FontSize, type Theme } from "@/lib/appearance";
 import { clearAllData, downloadExport, importData } from "@/lib/backup";
+import { withBasePath } from "@/lib/basePath";
 import { db, getSetting, setSetting } from "@/lib/db";
 import { resetProfile, syncDefaultProfile } from "@/lib/profile";
 import { MAX_TOPICS, MIN_TOPICS } from "@/lib/topics";
@@ -16,6 +24,7 @@ export default function SettingsPage() {
     <>
       <main className="mx-auto max-w-xl px-5 pt-10 pb-28">
         <h1 className="font-serif text-3xl font-semibold">Settings</h1>
+        <ApiKeySection />
         <TopicsSection />
         <TasteProfileSection />
         <AppearanceSection />
@@ -32,6 +41,41 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       <h2 className="text-sm font-semibold tracking-wide text-muted uppercase">{title}</h2>
       <div className="mt-4">{children}</div>
     </section>
+  );
+}
+
+function ApiKeySection() {
+  const key = useSyncExternalStore(subscribeApiKey, getApiKey, () => null);
+
+  function remove() {
+    if (!window.confirm("Remove your API key from this device?")) return;
+    clearApiKey();
+  }
+
+  return (
+    <Section title="Anthropic API key">
+      <p className="mb-4 text-sm text-muted">
+        Titles and articles are written with your own key. It&apos;s saved only in this browser on
+        this device, is sent only to Anthropic, and is never included in a data export.
+      </p>
+      <p className="mb-4 text-sm">
+        {key ? (
+          <>
+            Saved key: <span className="font-mono">{maskApiKey(key)}</span>
+          </>
+        ) : (
+          "No key saved on this device."
+        )}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <ActionButton onClick={openApiKeyPrompt}>{key ? "Change key" : "Add key"}</ActionButton>
+        {key && (
+          <ActionButton danger onClick={remove}>
+            Remove key
+          </ActionButton>
+        )}
+      </div>
+    </Section>
   );
 }
 
@@ -216,18 +260,22 @@ function DataSection() {
     try {
       await importData(await file.text());
       // Start from a clean page so nothing from before the import lingers.
-      window.location.href = "/";
+      window.location.href = withBasePath("/");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "The import failed.");
     }
   }
 
   async function onClear() {
-    if (!window.confirm("Delete all topics, titles, articles and settings from this browser?")) {
+    if (
+      !window.confirm(
+        "Delete all topics, titles, articles, settings and your API key from this browser?",
+      )
+    ) {
       return;
     }
     await clearAllData();
-    window.location.href = "/";
+    window.location.href = withBasePath("/");
   }
 
   return (

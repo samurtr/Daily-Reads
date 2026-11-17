@@ -1,5 +1,6 @@
-import { apiFetch, codeMessage, errorMessage } from "./api";
-import type { ArticleEvent } from "./article-events";
+import { generateArticle } from "./ai/article";
+import { errorMessage } from "./ai/client";
+import type { ArticleProgress, ArticleResult } from "./article-events";
 import { db } from "./db";
 import { defaultProfile, likedExcerpts } from "./profile";
 import type { ArticleRequest } from "./schemas";
@@ -68,7 +69,7 @@ async function buildRequest(idea: TitleIdea): Promise<ArticleRequest> {
   };
 }
 
-async function saveArticle(idea: TitleIdea, event: Extract<ArticleEvent, { type: "done" }>) {
+async function saveArticle(idea: TitleIdea, event: Extract<ArticleResult, { type: "done" }>) {
   await db.transaction("rw", db.articles, db.title_ideas, async () => {
     const existing = await db.articles.where("title_idea_id").equals(idea.id).first();
     if (!existing) {
@@ -93,60 +94,36 @@ async function saveArticle(idea: TitleIdea, event: Extract<ArticleEvent, { type:
 }
 
 async function run(idea: TitleIdea, signal: AbortSignal) {
-  const res = await apiFetch("/api/article", await buildRequest(idea), { signal });
-  if (!res.body) throw new Error("The article response had no body");
-
-  let finished = false;
-  const handle = async (event: ArticleEvent) => {
-    switch (event.type) {
+  const report = (progress: ArticleProgress) => {
+    if (signal.aborted) return;
+    switch (progress.type) {
       case "status":
-        update(idea.id, { stage: event.stage });
+        update(idea.id, { stage: progress.stage });
         break;
       case "found":
-        update(idea.id, { found: event.pages });
+        update(idea.id, { found: progress.pages });
         break;
       case "sources":
-        update(idea.id, { sources: event.sources });
+        update(idea.id, { sources: progress.sources });
         break;
       case "delta":
-        update(idea.id, { body: (generations.get(idea.id)?.body ?? "") + event.text });
+        update(idea.id, { body: (generations.get(idea.id)?.body ?? "") + progress.text });
         break;
       case "reset":
         update(idea.id, { body: "" });
         break;
-      case "done":
-        // Cache first, so re-opening the article costs nothing.
-        await saveArticle(idea, event);
-        update(idea.id, { stage: "done", body: event.body_markdown, sources: event.sources });
-        finished = true;
-        break;
-      case "unverified":
-        update(idea.id, { stage: "unverified" });
-        finished = true;
-        break;
-      case "error":
-        update(idea.id, { stage: "error", message: codeMessage(event.code) });
-        finished = true;
-        break;
     }
   };
 
-  // The response is newline-delimited JSON.
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    let newline: number;
-    while ((newline = buffer.indexOf("\n")) >= 0) {
-      const line = buffer.slice(0, newline).trim();
-      buffer = buffer.slice(newline + 1);
-      if (line) await handle(JSON.parse(line) as ArticleEvent);
-    }
+  const result = await generateArticle(await buildRequest(idea), report, signal);
+  if (signal.aborted) return;
+  if (result.type === "unverified") {
+    update(idea.id, { stage: "unverified" });
+    return;
   }
-  if (!finished) throw new Error("The article stream ended early");
+  // Cache first, so re-opening the article costs nothing.
+  await saveArticle(idea, result);
+  update(idea.id, { stage: "done", body: result.body_markdown, sources: result.sources });
 }
 
 /** Starts researching and writing the article for a title, unless that is already running. */
